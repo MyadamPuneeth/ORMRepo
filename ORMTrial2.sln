@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ORMTrial2", "ORMTrial2\ORMTrial2.csproj", "{B09786A7-F92F-45EF-BA0A-79E7886CDCCB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B09786A7-F92F-45EF-BA0A-79E7886CDCCB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B09786A7-F92F-45EF-BA0A-79E7886CDCCB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B09786A7-F92F-45EF-BA0A-79E7886CDCCB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B09786A7-F92F-45EF-BA0A-79E7886CDCCB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D52D5934-E110-4B94-AA81-635823F567B3}
+	EndGlobalSection
+EndGlobal
