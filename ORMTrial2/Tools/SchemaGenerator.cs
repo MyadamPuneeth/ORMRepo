@@ -16,66 +16,80 @@ namespace ORMTrial2.Tools
             _queryGenerator = new QueryGenerator();
         }
 
-        // Synchronize tables dynamically using the AppDbContext
-        public void SynchronizeTables(AppDbContext appDbContext, string connectionString)
+        // Synchronize tables dynamically using DbFrame
+        public void SynchronizeTables(DbFrame dbFrame, string connectionString)
         {
-            var modelTypes = appDbContext.Model.GetEntityTypes()
-                                .Select(t => t.ClrType)
-                                .ToDictionary(t => t.Name, t => t);
+            Console.WriteLine("Starting table synchronization...");
 
+            // Get models from DbFrame
+            var modelDefinitions = dbFrame.GetType()
+                                           .GetProperties()
+                                           .Where(prop => prop.PropertyType.IsGenericType &&
+                                                          prop.PropertyType.GetGenericTypeDefinition() == typeof(DbFrame<>))
+                                           .Select(prop => new
+                                           {
+                                               TableName = prop.Name,
+                                               ModelType = prop.PropertyType.GenericTypeArguments[0]
+                                           })
+                                           .ToList();
+
+            // Fetch existing tables from the database
             var dbTables = GetTablesFromDatabase(connectionString);
 
-            // Synchronize tables based on models
-            foreach (var model in modelTypes)
+            // Synchronize tables
+            foreach (var model in modelDefinitions)
             {
-                var tableName = model.Key;
-                var modelType = model.Value;
+                var tableName = model.TableName;
+                var modelType = model.ModelType;
 
                 if (dbTables.Contains(tableName))
                 {
-                    // Table exists, check for column differences
-                    Console.WriteLine($"Table '{tableName}' already exists. Checking for column differences...");
-                    var existingColumns = GetColumnsFromDatabase(tableName, connectionString);
-                    GenerateAlterTableScripts(modelType, tableName, existingColumns, connectionString);
+                    // Table exists: Generate ALTER scripts
+                    Console.WriteLine($"Table '{tableName}' exists. Generating ALTER scripts...");
+                    GenerateAlterTableScripts(modelType, tableName, connectionString);
                 }
                 else
                 {
-                    // Table does not exist, create it
-                    Console.WriteLine($"Table '{tableName}' does not exist. Creating...");
+                    // Table does not exist: Create it
+                    Console.WriteLine($"Table '{tableName}' does not exist. Creating table...");
                     GenerateCreateTableScript(modelType, tableName, connectionString);
                 }
             }
 
-            // Delete tables from the database that are not mapped in the models
+            // Drop tables from the database that are not mapped in DbFrame
+            var modelTableNames = new HashSet<string>(modelDefinitions.Select(m => m.TableName));
             foreach (var dbTable in dbTables)
             {
-                if (!modelTypes.ContainsKey(dbTable))
+                if (!modelTableNames.Contains(dbTable))
                 {
-                    Console.WriteLine($"Table '{dbTable}' is not mapped to any model. Deleting...");
-                    DropTable(dbTable, connectionString);
+                    Console.WriteLine($"Table '{dbTable}' is not mapped in DbFrame. Dropping...");
+                    GenerateDropTableScript(dbTable, connectionString);
                 }
             }
+
+            Console.WriteLine("Table synchronization complete.");
         }
 
-        // Generate CREATE TABLE script and execute it
+        // Generate CREATE TABLE script
         public void GenerateCreateTableScript(Type modelType, string tableName, string connectionString)
         {
             var columns = GetColumnsFromModel(modelType);
             var sqlScript = _queryGenerator.GenerateCreateTable(tableName, columns);
 
-            Console.WriteLine($"Generated CREATE TABLE Script:\n{sqlScript}");
+            Console.WriteLine($"Generated CREATE TABLE script:\n{sqlScript}");
             ExecuteSqlCommand(sqlScript, connectionString);
         }
 
-        // Generate ALTER TABLE scripts for existing tables and execute them
-        public void GenerateAlterTableScripts(Type modelType, string tableName, Dictionary<string, string> existingColumns, string connectionString)
+        // Generate ALTER TABLE scripts
+        public void GenerateAlterTableScripts(Type modelType, string tableName, string connectionString)
         {
+            var existingColumns = GetExistingColumnsFromDatabase(tableName, connectionString);
             var newColumns = GetColumnsFromModel(modelType);
             var alterScript = _queryGenerator.GenerateAlterTable(tableName, existingColumns, newColumns);
 
             if (!string.IsNullOrEmpty(alterScript))
             {
-                Console.WriteLine($"Generated ALTER TABLE Script:\n{alterScript}");
+                Console.WriteLine($"Generated ALTER TABLE script:\n{alterScript}");
                 ExecuteSqlCommand(alterScript, connectionString);
             }
             else
@@ -84,16 +98,53 @@ namespace ORMTrial2.Tools
             }
         }
 
-        // Drop a specific table
-        public void DropTable(string tableName, string connectionString)
+        private Dictionary<string, string> GetExistingColumnsFromDatabase(string tableName, string connectionString)
+        {
+            var existingColumns = new Dictionary<string, string>();
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+
+                var query = @"
+            SELECT 
+                COLUMN_NAME, 
+                DATA_TYPE 
+            FROM 
+                INFORMATION_SCHEMA.COLUMNS 
+            WHERE 
+                TABLE_NAME = @TableName";
+
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@TableName", tableName);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var columnName = reader["COLUMN_NAME"].ToString();
+                            var dataType = reader["DATA_TYPE"].ToString();
+
+                            existingColumns[columnName] = dataType;
+                        }
+                    }
+                }
+            }
+
+            return existingColumns;
+        }
+
+        // Drop a table
+        public void GenerateDropTableScript(string tableName, string connectionString)
         {
             var dropScript = $"DROP TABLE IF EXISTS [{tableName}];";
 
-            Console.WriteLine($"Generated DROP TABLE Script:\n{dropScript}");
+            Console.WriteLine($"Generated DROP TABLE script:\n{dropScript}");
             ExecuteSqlCommand(dropScript, connectionString);
         }
 
-        // Get column definitions from a model type
+        // Map model properties to SQL column definitions
         private Dictionary<string, string> GetColumnsFromModel(Type modelType)
         {
             var columns = new Dictionary<string, string>();
@@ -104,6 +155,7 @@ namespace ORMTrial2.Tools
                 var columnName = property.Name;
                 var columnType = GetSqlColumnType(property.PropertyType);
 
+                // Check for [Key] attribute (Primary Key)
                 if (property.GetCustomAttributes(typeof(KeyAttribute), inherit: false).Any())
                 {
                     columnType += " PRIMARY KEY IDENTITY(1,1)";
@@ -115,7 +167,7 @@ namespace ORMTrial2.Tools
             return columns;
         }
 
-        // Get columns for an existing table from the database
+        // Fetch column definitions from the database for a table
         private Dictionary<string, string> GetColumnsFromDatabase(string tableName, string connectionString)
         {
             var columns = new Dictionary<string, string>();
@@ -146,7 +198,7 @@ namespace ORMTrial2.Tools
             return columns;
         }
 
-        // Get all table names from the database
+        // Fetch all table names from the database
         private List<string> GetTablesFromDatabase(string connectionString)
         {
             var tables = new List<string>();
@@ -175,7 +227,7 @@ namespace ORMTrial2.Tools
             return tables;
         }
 
-        // Get SQL type mapping for C# types
+        // Map C# types to SQL types
         private string GetSqlColumnType(Type type)
         {
             return type switch
@@ -188,7 +240,7 @@ namespace ORMTrial2.Tools
             };
         }
 
-        // Execute an SQL command against the database
+        // Execute SQL command
         private void ExecuteSqlCommand(string sqlScript, string connectionString)
         {
             try

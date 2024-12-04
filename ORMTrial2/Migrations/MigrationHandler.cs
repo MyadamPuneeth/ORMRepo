@@ -7,41 +7,51 @@ namespace ORMTrial2.Migrations
     public class MigrationHandler
     {
         private readonly SchemaGenerator _schemaGenerator;
+        private readonly DbFrame _dbFrame;
 
         // Constructor to initialize dependencies
         public MigrationHandler()
         {
             _schemaGenerator = new SchemaGenerator();
+            _dbFrame = new DbFrame();
         }
 
-        // Method to check if a table exists and apply migration or create table
-        public void HandleMigration(Type modelType, string connectionString)
+        // Method to handle migrations for all models in DbFrame
+        public void HandleMigrations(string connectionString)
         {
-            Console.WriteLine($"Checking if table '{modelType.Name}' exists...");
+            Console.WriteLine("Starting database migrations...");
 
-            // Check if the table exists in the database
-            bool tableExists = TableExists(modelType.Name, connectionString);
-
-            if (tableExists)
+            // Iterate through all registered models in DbFrame
+            foreach (var modelEntry in _dbFrame.Model)
             {
-                // Table exists, compare columns
-                Console.WriteLine($"Table '{modelType.Name}' already exists. Checking for column differences.");
+                var tableName = modelEntry.Key;
+                var modelType = modelEntry.Value;
 
-                // Compare columns and generate ALTER TABLE script if needed
-                var migrationScripts = _schemaGenerator.GenerateAlterTableScripts(modelType, connectionString);
-                Console.WriteLine($"Migration applied for table '{modelType.Name}'.");
-                
+                Console.WriteLine($"Checking if table '{tableName}' exists...");
+
+                // Check if the table exists in the database
+                bool tableExists = TableExists(tableName, connectionString);
+
+                if (tableExists)
+                {
+                    // Table exists, compare columns
+                    Console.WriteLine($"Table '{tableName}' already exists. Checking for column differences.");
+
+                    // Compare columns and generate ALTER TABLE script if needed
+                    _schemaGenerator.GenerateAlterTableScripts(modelType, tableName, connectionString);
+                    Console.WriteLine($"Migration applied for table '{tableName}'.");
+                }
+                else
+                {
+                    // Table doesn't exist, create the table
+                    Console.WriteLine($"Table '{tableName}' does not exist. Creating table.");
+                    _schemaGenerator.GenerateCreateTableScript(modelType, tableName, connectionString);
+                    Console.WriteLine($"Table '{tableName}' created successfully.");
+                }
             }
-            else
-            {
-                // Table doesn't exist, create the table
-                Console.WriteLine($"Table '{modelType.Name}' does not exist. Creating table.");
-                var schema = _schemaGenerator.GenerateCreateTableScript(modelType, connectionString);
-                Console.WriteLine($"Table '{modelType.Name}' created successfully.");
-            }
+
+            Console.WriteLine("Database migrations completed.");
         }
-
-
 
         // Helper method to check if a table exists in the database
         private bool TableExists(string tableName, string connectionString)
