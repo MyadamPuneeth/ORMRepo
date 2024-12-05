@@ -13,39 +13,42 @@ namespace ORMTrial2.Tools
     {
         private readonly QueryGenerator _queryGenerator;
         private readonly SchemaGenerator _schemaGenerator;
-        
+        private readonly string connectionString;
+
 
         public CRUDOperationsManger()
         {
             _queryGenerator = new QueryGenerator();
             var config = ConfigLoader.LoadConfig("appsettings.json");
-            string connectionString = config.GetConnectionString("DefaultConnection");
+            connectionString = config.GetConnectionString("DefaultConnection");
         }
 
-        public void InsertData<T>(Type modelType, string tableName, T entity, string connectionString)
+        public void InsertData<T>(T entity)
         {
             // Convert the entity's properties to a dictionary
             var data = entity.GetType()
-                             .GetProperties()
-                             .ToDictionary(prop => prop.Name, prop => prop.GetValue(entity) ?? DBNull.Value);
+                                         .GetProperties()
+                                         .ToDictionary(prop => prop.Name, prop => prop.GetValue(entity) ?? DBNull.Value);
 
             // Generate the insert query
-            var insertQuery = _queryGenerator.GenerateInsert(modelType,tableName, data);
+            var insertQuery = _queryGenerator.GenerateInsert(entity.GetType(), entity.GetType().Name, data);
+
 
             // Execute the query
             ExecuteCommand(insertQuery, data, connectionString);
             Console.WriteLine("Data inserted successfully.");
         }
 
-        public void UpdateData<T>(string tableName, T entity, string whereClause, string connectionString) where T : class
+        public void UpdateData<T>(T entity, string condition)
         {
+            
             // Convert the entity's properties to a dictionary
             var data = entity.GetType()
                              .GetProperties()
                              .ToDictionary(prop => prop.Name, prop => prop.GetValue(entity) ?? DBNull.Value);
 
             // Generate the update query
-            var updateQuery = _queryGenerator.GenerateUpdate(tableName, data, whereClause);
+            var updateQuery = _queryGenerator.GenerateUpdate(entity.GetType().Name, data, condition);
 
             // Execute the query
             ExecuteCommand(updateQuery, data, connectionString);

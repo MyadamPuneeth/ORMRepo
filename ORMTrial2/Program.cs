@@ -15,6 +15,9 @@ namespace ORMTrial2
             // Initialize necessary components
             var schemaGenerator = new SchemaGenerator();
             var dbContext = new AppDbContext(); // Instantiate the AppDbContext
+            dbContext.CRUDopsMethod();
+            var modelGenerator = new ModelGenerator();
+            //modelGenerator.GenerateModels(connectionString);
 
             // Call the SynchronizeTables method
             Console.WriteLine("Do you want to synchronize all table schemas? (yes/no)");

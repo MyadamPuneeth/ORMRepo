@@ -32,21 +32,21 @@ namespace ORMTrial2.Tools
         }
 
         // Generates an INSERT statement
-        public string GenerateInsert(Type modelType, string tableName, Dictionary<string, object> data, List<string> excludeColumns = null)
+        public string GenerateInsert(Type modelType,string tableName, Dictionary<string, object> data, List<string> excludeColumns = null)
         {
-            if (string.IsNullOrWhiteSpace(tableName))
+            if (string.IsNullOrWhiteSpace(modelType.Name))
                 throw new ArgumentException("Table name cannot be null or empty.", nameof(tableName));
 
             if (data == null || !data.Any())
                 throw new ArgumentException("Data dictionary must have at least one entry.", nameof(data));
 
             // Exclude columns if specified
-            if (excludeColumns != null)
-            {
-                data = data
-                    .Where(kvp => !excludeColumns.Contains(kvp.Key)) // Exclude specified columns
-                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-            }
+            //if (excludeColumns != null)
+            //{
+            //    data = data
+            //        .Where(kvp => !excludeColumns.Contains(kvp.Key)) // Exclude specified columns
+            //        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+            //}
 
             // Exclude properties marked with [Key] attribute
             if (modelType != null)
@@ -84,12 +84,10 @@ namespace ORMTrial2.Tools
             return $"INSERT INTO [{tableName}] ({columns}) VALUES ({values});";
         }
 
-
-
-
         // Generates an UPDATE statement
         public string GenerateUpdate(string tableName, Dictionary<string, object> data, string whereClause)
         {
+
             if (string.IsNullOrWhiteSpace(tableName))
                 throw new ArgumentException("Table name cannot be null or empty.", nameof(tableName));
 
@@ -99,8 +97,9 @@ namespace ORMTrial2.Tools
             if (string.IsNullOrWhiteSpace(whereClause))
                 throw new ArgumentException("Where clause cannot be null or empty for updates.", nameof(whereClause));
 
-            var setClause = string.Join(", ", data.Keys.Select(k => $"{k} = @{k}"));
-            return $"UPDATE {tableName} SET {setClause} WHERE {whereClause};";
+            var setClause = string.Join(", ", data.Select(kvp => $"{kvp.Key} = {FormatValue(kvp.Value)}"));
+
+            return $"UPDATE [{tableName}] SET {setClause} WHERE {whereClause};";
         }
 
         // Generates a DELETE statement
@@ -163,5 +162,24 @@ namespace ORMTrial2.Tools
 
             return string.Join(Environment.NewLine, alterTableScripts);
         }
+
+        private string FormatValue(object value)
+        {
+            if (value == null || value == DBNull.Value || (value is string str && string.IsNullOrWhiteSpace(str)))
+                return "NULL"; // Return NULL if the value is null, DBNull, or an empty string
+
+            if (value is string || value is char)
+                return $"'{value}'"; // Enclose strings and chars in single quotes
+
+            if (value is bool booleanValue)
+                return booleanValue ? "1" : "0"; // Convert booleans to 1/0 for SQL
+
+            if (value is DateTime dateTimeValue)
+                return $"'{dateTimeValue:yyyy-MM-dd HH:mm:ss}'"; // Format datetime for SQL
+
+            // Directly convert numeric and other primitive types to strings
+            return value.ToString();
+        }
+
     }
 }

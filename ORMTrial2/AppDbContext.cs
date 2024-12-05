@@ -10,8 +10,43 @@ namespace ORMTrial2
 {
     public class AppDbContext : DbFrame
     {
-        public DbFrame<User> user { get; set; }
-        public DbFrame<student> Student { get; set; }
-        public DbFrame<Vattikuti> Vattikuti { get; set; }
+        private readonly CRUDOperationsManger crudOpsManager;
+
+        public AppDbContext()
+        {
+            crudOpsManager = new CRUDOperationsManger();
+        }
+
+        public DbFrame<User> User { get; set; }
+        public DbFrame<Student> Student { get; set; }
+
+        public void CRUDopsMethod()
+        {
+
+            //User userInsertData = new User
+            //{
+            //    Age = 3,
+            //    UserName="Tapasya"
+            //};
+
+            //crudOpsManager.InsertData(userInsertData);
+
+            //User updateData = new User
+            //{
+            //    UserName = "Hero Chan"
+            //};
+
+            //crudOpsManager.UpdateData(updateData, "age = 2");
+
+            //Student stuInsertData = new Student
+            //{
+            //    stuname = "Vijay",
+            //    rollNUmber = 1,
+            //};
+            //crudOpsManager.InsertData(stuInsertData);
+
+        }
+
     }
+
 }

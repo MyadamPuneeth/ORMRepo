@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
@@ -74,11 +75,25 @@ namespace ORMTrial2.Tools
         public void GenerateCreateTableScript(Type modelType, string tableName, string connectionString)
         {
             var columns = GetColumnsFromModel(modelType);
-            var sqlScript = _queryGenerator.GenerateCreateTable(tableName, columns);
+            var foreignKeys = GetForeignKeysFromModel(modelType); // Get foreign keys separately
+            var columnDefinitions = columns.Select(col => $"{col.Key} {col.Value}").ToList();
+
+            // Start building the CREATE TABLE script
+            var sqlScript = $"CREATE TABLE [{tableName}] (\n" + string.Join(",\n", columnDefinitions);
+
+            // Append foreign key constraints inside the CREATE TABLE script (before the closing parenthesis)
+            if (foreignKeys.Any())
+            {
+                sqlScript += ",\n" + string.Join(",\n", foreignKeys);
+            }
+
+            // Close the parentheses of the CREATE TABLE script
+            sqlScript += "\n);";
 
             Console.WriteLine($"Generated CREATE TABLE script:\n{sqlScript}");
             ExecuteSqlCommand(sqlScript, connectionString);
         }
+
 
         // Generate ALTER TABLE scripts
         public void GenerateAlterTableScripts(Type modelType, string tableName, string connectionString)
@@ -98,7 +113,7 @@ namespace ORMTrial2.Tools
             }
         }
 
-        private Dictionary<string, string> GetExistingColumnsFromDatabase(string tableName, string connectionString)
+        public Dictionary<string, string> GetExistingColumnsFromDatabase(string tableName, string connectionString)
         {
             var existingColumns = new Dictionary<string, string>();
 
@@ -167,39 +182,29 @@ namespace ORMTrial2.Tools
             return columns;
         }
 
-        // Fetch column definitions from the database for a table
-        private Dictionary<string, string> GetColumnsFromDatabase(string tableName, string connectionString)
+        // Get foreign keys from the model
+        private List<string> GetForeignKeysFromModel(Type modelType)
         {
-            var columns = new Dictionary<string, string>();
+            var foreignKeys = new List<string>();
+            var properties = modelType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-            try
+            foreach (var property in properties)
             {
-                using var connection = new SqlConnection(connectionString);
-                connection.Open();
-
-                var command = new SqlCommand($@"
-                    SELECT COLUMN_NAME, DATA_TYPE 
-                    FROM INFORMATION_SCHEMA.COLUMNS 
-                    WHERE TABLE_NAME = '{tableName}'", connection);
-
-                using var reader = command.ExecuteReader();
-                while (reader.Read())
+                // Check for [ForeignKey] attribute
+                var foreignKeyAttribute = property.GetCustomAttribute<ForeignKeyAttribute>();
+                if (foreignKeyAttribute != null)
                 {
-                    var columnName = reader.GetString(0);
-                    var columnType = reader.GetString(1);
-                    columns.Add(columnName, columnType);
+                    var referencedTable = foreignKeyAttribute.Name;
+                    var foreignKeyConstraint = $"FOREIGN KEY ({property.Name}) REFERENCES [{referencedTable}](Id)";
+                    foreignKeys.Add(foreignKeyConstraint);
                 }
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error retrieving columns from database: {ex.Message}");
-            }
 
-            return columns;
+            return foreignKeys;
         }
 
         // Fetch all table names from the database
-        private List<string> GetTablesFromDatabase(string connectionString)
+        public List<string> GetTablesFromDatabase(string connectionString)
         {
             var tables = new List<string>();
 
@@ -228,7 +233,7 @@ namespace ORMTrial2.Tools
         }
 
         // Map C# types to SQL types
-        private string GetSqlColumnType(Type type)
+        public string GetSqlColumnType(Type type)
         {
             return type switch
             {
@@ -257,6 +262,136 @@ namespace ORMTrial2.Tools
             {
                 Console.WriteLine($"An error occurred while executing the SQL command: {ex.Message}");
             }
+        }
+
+        public Dictionary<string, string> GetForeignKeysForTable(string tableName, string connectionString)
+        {
+            var foreignKeys = new Dictionary<string, string>();
+
+            string query = @"
+SELECT 
+    COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS ReferencingColumn,
+    OBJECT_NAME(fk.referenced_object_id) AS ReferencedTable
+FROM 
+    sys.foreign_keys AS fk
+JOIN 
+    sys.foreign_key_columns AS fkc 
+    ON fk.object_id = fkc.constraint_object_id
+WHERE 
+    OBJECT_NAME(fk.parent_object_id) = @TableName";
+
+            using (var connection = new SqlConnection(connectionString))
+            {
+                connection.Open();
+                using (var command = new SqlCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@TableName", tableName);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var columnName = reader["ReferencingColumn"].ToString();
+                            var referencedTableName = reader["ReferencedTable"].ToString();
+
+                            if (!foreignKeys.ContainsKey(columnName))
+                            {
+                                foreignKeys[columnName] = referencedTableName;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return foreignKeys;
+        }
+
+
+
+        public string? GetPrimaryKeyForTable(string tableName, string connectionString)
+        {
+            string? primaryKeyColumn = null;
+
+            // SQL query to fetch the primary key column
+            string query = @"
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+        WHERE OBJECTPROPERTY(OBJECT_ID(CONSTRAINT_SCHEMA + '.' + CONSTRAINT_NAME), 'IsPrimaryKey') = 1
+        AND TABLE_NAME = @TableName";
+
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@TableName", tableName);
+                        var result = command.ExecuteScalar();
+                        primaryKeyColumn = result?.ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error retrieving primary key for table {tableName}: {ex.Message}");
+            }
+
+            return primaryKeyColumn;
+        }
+
+        public Dictionary<string, List<string>> GetColumnConstraints(string tableName, string connectionString)
+        {
+            var columnConstraints = new Dictionary<string, List<string>>();
+
+            // SQL query to fetch column constraints
+            string query = @"
+        SELECT 
+            COLUMN_NAME,
+            CONSTRAINT_NAME,
+            CONSTRAINT_TYPE
+        FROM 
+            INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE
+        INNER JOIN 
+            INFORMATION_SCHEMA.TABLE_CONSTRAINTS 
+            ON INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE.CONSTRAINT_NAME = INFORMATION_SCHEMA.TABLE_CONSTRAINTS.CONSTRAINT_NAME
+        WHERE 
+            TABLE_NAME = @TableName";
+
+            try
+            {
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+                    using (var command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@TableName", tableName);
+
+                        using (var reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                var columnName = reader["COLUMN_NAME"].ToString();
+                                var constraintName = reader["CONSTRAINT_NAME"].ToString();
+                                var constraintType = reader["CONSTRAINT_TYPE"].ToString();
+
+                                if (!columnConstraints.ContainsKey(columnName))
+                                {
+                                    columnConstraints[columnName] = new List<string>();
+                                }
+
+                                columnConstraints[columnName].Add($"{constraintType}: {constraintName}");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error retrieving column constraints for table {tableName}: {ex.Message}");
+            }
+
+            return columnConstraints;
         }
     }
 }

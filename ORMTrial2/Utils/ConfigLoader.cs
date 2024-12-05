@@ -26,6 +26,6 @@ namespace ORMTrial2.Utils
 
             return config;
         }
-
+        
     }
 }
