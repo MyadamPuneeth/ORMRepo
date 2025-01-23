@@ -4,10 +4,12 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ORMTrial2.Models
 {
-    public class User : BaseModel
-    {
-        public string UserName { get; set; }
-        public int Age { get; set; }
-
+[Table("User")]
+public class User
+{
+public string UserName { get; set; }
+public int Age { get; set; }
+[Key]
+public int Id { get; set; }
     }
 }

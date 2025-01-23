@@ -8,7 +8,7 @@ namespace ORMTrial2.Utils
         public static IConfiguration LoadConfig(string filePath)
         {
             var configBuilder = new ConfigurationBuilder()
-                .SetBasePath(Directory.GetCurrentDirectory()) // Ensure it looks in the right directory
+                .SetBasePath(Directory.GetCurrentDirectory()) 
                 .AddJsonFile(filePath, optional: false, reloadOnChange: true);
 
             var config = configBuilder.Build();

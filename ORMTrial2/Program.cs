@@ -17,21 +17,21 @@ namespace ORMTrial2
             var dbContext = new AppDbContext(); // Instantiate the AppDbContext
             dbContext.CRUDopsMethod();
             var modelGenerator = new ModelGenerator();
-            //modelGenerator.GenerateModels(connectionString);
+            modelGenerator.GenerateModels(connectionString);
 
             // Call the SynchronizeTables method
-            Console.WriteLine("Do you want to synchronize all table schemas? (yes/no)");
-            string input = Console.ReadLine();
+            //Console.WriteLine("Do you want to synchronize all table schemas? (yes/no)");
+            //string input = Console.ReadLine();
 
-            if (input?.ToLower() == "yes")
-            {
-                schemaGenerator.SynchronizeTables(dbContext, connectionString);
-                Console.WriteLine("All table schemas synchronized successfully.");
-            }
-            else
-            {
-                Console.WriteLine("Skipping table schema synchronization.");
-            }
+            //if (input?.ToLower() == "yes")
+            //{
+            //    schemaGenerator.SynchronizeTables(dbContext, connectionString);
+            //    Console.WriteLine("All table schemas synchronized successfully.");
+            //}
+            //else
+            //{
+            //    Console.WriteLine("Skipping table schema synchronization.");
+            //}
         }
     }
 }

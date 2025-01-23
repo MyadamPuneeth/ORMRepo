@@ -16,7 +16,7 @@ namespace ORMTrial2.Tools
         {
             var solutionDirectory = GetSolutionDirectory();
             if (solutionDirectory == null)
-            {
+            { 
                 Console.WriteLine("Solution directory could not be determined.");
                 return;
             }

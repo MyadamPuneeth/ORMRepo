@@ -1,4 +1,4 @@
-﻿using ORMTrial2.Models;
+﻿//using ORMTrial2.Models;
 using ORMTrial2.Tools;
 using System;
 using System.Collections.Generic;
@@ -17,8 +17,8 @@ namespace ORMTrial2
             crudOpsManager = new CRUDOperationsManger();
         }
 
-        public DbFrame<User> User { get; set; }
-        public DbFrame<Student> Student { get; set; }
+        //public DbFrame<User> User { get; set; }
+        //public DbFrame<Student> Student { get; set; }
 
         public void CRUDopsMethod()
         {
@@ -44,6 +44,8 @@ namespace ORMTrial2
             //    rollNUmber = 1,
             //};
             //crudOpsManager.InsertData(stuInsertData);
+
+
 
         }
 
